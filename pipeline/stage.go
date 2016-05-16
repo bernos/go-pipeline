@@ -9,15 +9,15 @@ import (
 // wrapped in Pipeline functions which take care of pushing and pulling
 // contexts to and from Stages
 type Stage interface {
-	Handle(context.Context) (context.Context, error)
+	Handle(context.Context, chan context.Context, chan error)
 }
 
 // StageFunc makes a regular func implement the Stage interface
-type StageFunc func(ctx context.Context) (context.Context, error)
+type StageFunc func(context.Context, chan context.Context, chan error)
 
 // Handle satisfies the Stage interface for StageFunc
-func (fn StageFunc) Handle(ctx context.Context) (context.Context, error) {
-	return fn(ctx)
+func (fn StageFunc) Handle(ctx context.Context, out chan context.Context, errors chan error) {
+	fn(ctx, out, errors)
 }
 
 // Higher order Pipeline funcs

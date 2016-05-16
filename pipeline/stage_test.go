@@ -26,8 +26,8 @@ func FromContext(ctx context.Context) int {
 }
 
 func multiply(x int) Stage {
-	return StageFunc(func(ctx context.Context) (context.Context, error) {
-		return NewContext(ctx, FromContext(ctx)*x), nil
+	return StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+		out <- NewContext(ctx, FromContext(ctx)*x)
 	})
 }
 
@@ -94,8 +94,8 @@ func runPipeline(pl Pipeline, input []context.Context) ([]context.Context, []err
 }
 
 func TestErrors(t *testing.T) {
-	stage := StageFunc(func(ctx context.Context) (context.Context, error) {
-		return nil, fmt.Errorf("foo")
+	stage := StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+		errors <- fmt.Errorf("foo")
 	})
 
 	input := make([]context.Context, 10)

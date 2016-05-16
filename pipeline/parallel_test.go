@@ -9,9 +9,9 @@ import (
 func TestParallel(t *testing.T) {
 	n := 50
 
-	stage := StageFunc(func(ctx context.Context) (context.Context, error) {
+	stage := StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		time.Sleep(time.Second)
-		return NewContext(context.Background(), FromContext(ctx)+1), nil
+		out <- NewContext(context.Background(), FromContext(ctx)+1)
 	})
 
 	values := make([]context.Context, n)
