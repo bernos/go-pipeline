@@ -1,4 +1,4 @@
-package main
+ main
 
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
@@ -9,6 +9,10 @@ import (
 	"net/http"
 	"regexp"
 	"time"
+)
+
+var (
+	urlRegexp = regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)`)
 )
 
 func main() {
@@ -88,9 +92,8 @@ func saveFile() pipeline.Handler {
 }
 
 func findURLS() pipeline.Handler {
-	re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)`)
 	return job.Handler(func(j job.Job, out func(job.Job) error) error {
-		result := re.FindAllString(j.Body, -1)
+		result := urlRegexp.FindAllString(j.Body, -1)
 		log.Printf("Found %d urls", len(result))
 		if result != nil {
 			for _, url := range result {
