@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
 	"golang.org/x/net/context"
@@ -38,6 +37,7 @@ func main() {
 			go func(ctx context.Context) {
 				input <- ctx
 			}(ctx)
+
 		}
 	}
 }
@@ -57,69 +57,46 @@ func dedupe() pipeline.Predicate {
 	}
 }
 
-func jobHandler(fn func(job.Job, chan context.Context, chan error)) pipeline.Handler {
-	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		if j, ok := job.FromContext(ctx); ok {
-			fn(j, out, errors)
-		} else {
-			errors <- fmt.Errorf("Unable to find job in context")
-		}
-	})
-}
-
 func fetchURL(client *http.Client) pipeline.Handler {
-	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		if j, ok := job.FromContext(ctx); ok {
-			log.Printf("fetching %s\n", j.URL)
+	return job.Handler(func(j job.Job, out func(job.Job) error) error {
+		log.Printf("fetching %s\n", j.URL)
 
-			resp, err := client.Get(j.URL)
+		resp, err := client.Get(j.URL)
 
-			if err != nil {
-				errors <- err
-				return
-			}
-
-			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
-
-			if err != nil {
-				errors <- err
-				return
-			}
-
-			j.Body = string(body)
-			out <- job.NewContext(ctx, j)
-		} else {
-			errors <- fmt.Errorf("Unable to find job in context")
+		if err != nil {
+			return err
 		}
+
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return err
+		}
+
+		j.Body = string(body)
+
+		return out(j)
 	})
 }
 
 func saveFile() pipeline.Handler {
-	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		if j, ok := job.FromContext(ctx); ok {
-			log.Printf("Saving %s\n", j.URL)
-
-			out <- ctx
-		} else {
-			errors <- fmt.Errorf("Unable to find job in context")
-		}
+	return job.Handler(func(j job.Job, out func(job.Job) error) error {
+		log.Printf("Saving %s\n", j.URL)
+		return out(j)
 	})
 }
 
 func findURLS() pipeline.Handler {
 	re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)`)
-	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		if j, ok := job.FromContext(ctx); ok {
-			result := re.FindAllString(j.Body, -1)
-			log.Printf("Found %d urls", len(result))
-			if result != nil {
-				for _, url := range result {
-					out <- job.NewContext(context.Background(), job.Job{URL: url})
-				}
+	return job.Handler(func(j job.Job, out func(job.Job) error) error {
+		result := re.FindAllString(j.Body, -1)
+		log.Printf("Found %d urls", len(result))
+		if result != nil {
+			for _, url := range result {
+				out(job.Job{URL: url})
 			}
-		} else {
-			errors <- fmt.Errorf("Unable to find job in context")
 		}
+		return nil
 	})
 }
