@@ -12,7 +12,7 @@ import (
 type Handler func(in Job, out func(Job) error) error
 
 // Handle makes our custom JobHandler implement pipeline.Handler
-func (h Handler) Handle(ctx context.Context, out chan context.Context, errors chan error) {
+func (h Handler) Handle(ctx context.Context, out chan<- context.Context, errors chan<- error) {
 	if j, ok := FromContext(ctx); ok {
 		err := h(j, func(j Job) error {
 			out <- NewContext(ctx, j)

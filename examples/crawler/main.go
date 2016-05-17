@@ -1,4 +1,4 @@
- main
+package main
 
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
@@ -41,7 +41,6 @@ func main() {
 			go func(ctx context.Context) {
 				input <- ctx
 			}(ctx)
-
 		}
 	}
 }
