@@ -9,7 +9,7 @@ import (
 func TestParallel(t *testing.T) {
 	n := 50
 
-	stage := StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+	stage := HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		time.Sleep(time.Second)
 		out <- NewContext(context.Background(), FromContext(ctx)+1)
 	})

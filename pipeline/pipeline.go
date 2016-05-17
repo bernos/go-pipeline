@@ -29,7 +29,7 @@ func (p Pipeline) Compose(next Pipeline) Pipeline {
 	return Compose(next, p)
 }
 
-func (p Pipeline) Pipe(next Stage) Pipeline {
+func (p Pipeline) Pipe(next Handler) Pipeline {
 	return Compose(Pipe(next), p)
 }
 

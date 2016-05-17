@@ -57,8 +57,8 @@ func dedupe() pipeline.Predicate {
 	}
 }
 
-func jobStage(fn func(job.Job, chan context.Context, chan error)) pipeline.Stage {
-	return pipeline.StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+func jobHandler(fn func(job.Job, chan context.Context, chan error)) pipeline.Handler {
+	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		if j, ok := job.FromContext(ctx); ok {
 			fn(j, out, errors)
 		} else {
@@ -67,8 +67,8 @@ func jobStage(fn func(job.Job, chan context.Context, chan error)) pipeline.Stage
 	})
 }
 
-func fetchURL(client *http.Client) pipeline.Stage {
-	return pipeline.StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+func fetchURL(client *http.Client) pipeline.Handler {
+	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		if j, ok := job.FromContext(ctx); ok {
 			log.Printf("fetching %s\n", j.URL)
 
@@ -95,8 +95,8 @@ func fetchURL(client *http.Client) pipeline.Stage {
 	})
 }
 
-func saveFile() pipeline.Stage {
-	return pipeline.StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+func saveFile() pipeline.Handler {
+	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		if j, ok := job.FromContext(ctx); ok {
 			log.Printf("Saving %s\n", j.URL)
 
@@ -107,9 +107,9 @@ func saveFile() pipeline.Stage {
 	})
 }
 
-func findURLS() pipeline.Stage {
+func findURLS() pipeline.Handler {
 	re := regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)`)
-	return pipeline.StageFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+	return pipeline.HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
 		if j, ok := job.FromContext(ctx); ok {
 			result := re.FindAllString(j.Body, -1)
 			log.Printf("Found %d urls", len(result))

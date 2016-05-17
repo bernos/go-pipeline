@@ -8,14 +8,14 @@ import (
 // Pipe passes values from an input channel to a Stage for handling, then
 // sends the output of the Stage onto the output channel. The Stage func
 // will be run in its own go routine.
-func Pipe(stage Stage) Pipeline {
+func Pipe(stage Handler) Pipeline {
 	return ParallelPipe(stage, 1)
 }
 
 // ParallelPipe runs multiple instances of a Stage in parallel, and passes
 // values from an input channel to them. The output of each instance of the
 // Stage function will be sent to the output channel
-func ParallelPipe(stage Stage, parallelism int) Pipeline {
+func ParallelPipe(stage Handler, parallelism int) Pipeline {
 	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
 		var wg sync.WaitGroup
 		wg.Add(parallelism)
