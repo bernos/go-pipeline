@@ -13,17 +13,17 @@ import (
 type Handler func(in Job, out func(Job) error) error
 
 // Handle makes our custom JobHandler implement pipeline.Handler
-func (h Handler) Handle(ctx context.Context, s stream.Stream) {
+func (h Handler) Handle(ctx context.Context, out stream.Stream) {
 	if j, ok := FromContext(ctx); ok {
 		err := h(j, func(j Job) error {
-			s.Value(NewContext(ctx, j))
+			out.Value(NewContext(ctx, j))
 			return nil
 		})
 
 		if err != nil {
-			s.Error(err)
+			out.Error(err)
 		}
 	} else {
-		s.Error(fmt.Errorf("Unable to find job in context"))
+		out.Error(fmt.Errorf("Unable to find job in context"))
 	}
 }
