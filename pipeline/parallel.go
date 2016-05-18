@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"sync"
 )
@@ -8,11 +9,10 @@ import (
 // Parallel runs n instances of a Pipeline in parallel, collecting all output and errors
 // onto the output channels
 func Parallel(pipeline Pipeline, n int) Pipeline {
-	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
+	return func(in stream.Stream) stream.Stream {
 		var (
-			wg     sync.WaitGroup
-			out    = make(chan context.Context)
-			errors = make(chan error)
+			wg  sync.WaitGroup
+			out = in.WithValues(make(chan context.Context))
 		)
 
 		for i := 0; i < n; i++ {
@@ -21,39 +21,38 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 			go func() {
 				defer wg.Done()
 
-				pipelineIn := make(chan context.Context)
-				pipelineOut, pipelineErrors := pipeline(pipelineIn)
+				pipelineIn := stream.New()
+				pipeOut := pipeline(pipelineIn)
 
-				defer close(pipelineIn)
+				defer pipelineIn.Close()
 
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					for err := range pipelineErrors {
-						errors <- err
+					for err := range pipeOut.Errors() {
+						out.Error(err)
 					}
 				}()
 
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					for value := range pipelineOut {
-						out <- value
+					for ctx := range pipeOut.Values() {
+						out.Value(ctx)
 					}
 				}()
 
-				for ctx := range in {
-					pipelineIn <- ctx
+				for ctx := range in.Values() {
+					pipelineIn.Value(ctx)
 				}
 			}()
 		}
 
 		go func() {
-			defer close(out)
-			defer close(errors)
+			defer out.Close()
 			wg.Wait()
 		}()
 
-		return out, errors
+		return out
 	}
 }

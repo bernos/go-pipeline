@@ -2,6 +2,7 @@ package job
 
 import (
 	"fmt"
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 )
 
@@ -12,17 +13,17 @@ import (
 type Handler func(in Job, out func(Job) error) error
 
 // Handle makes our custom JobHandler implement pipeline.Handler
-func (h Handler) Handle(ctx context.Context, out chan<- context.Context, errors chan<- error) {
+func (h Handler) Handle(ctx context.Context, out stream.Stream) {
 	if j, ok := FromContext(ctx); ok {
 		err := h(j, func(j Job) error {
-			out <- NewContext(ctx, j)
+			out.Value(NewContext(ctx, j))
 			return nil
 		})
 
 		if err != nil {
-			errors <- err
+			out.Error(err)
 		}
 	} else {
-		errors <- fmt.Errorf("Unable to find job in context")
+		out.Error(fmt.Errorf("Unable to find job in context"))
 	}
 }

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"testing"
 	// "time"
@@ -26,8 +27,8 @@ func FromContext(ctx context.Context) int {
 }
 
 func multiply(x int) Handler {
-	return HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		out <- NewContext(ctx, FromContext(ctx)*x)
+	return HandlerFunc(func(ctx context.Context, out stream.Stream) {
+		out.Value(NewContext(ctx, FromContext(ctx)*x))
 	})
 }
 
@@ -61,31 +62,32 @@ func runPipeline(pl Pipeline, input []context.Context) ([]context.Context, []err
 		wg     sync.WaitGroup
 		values = make([]context.Context, 0)
 		errors = make([]error, 0)
-		in     = make(chan context.Context)
+		in     = stream.New()
 	)
 
-	out, errs := pl(in)
+	out := pl(in)
 	wg.Add(2)
 
 	go func() {
-		defer close(in)
-		for _, value := range input {
-			in <- value
-		}
-	}()
-
-	go func() {
 		defer wg.Done()
-		for value := range out {
+		for value := range out.Values() {
 			values = append(values, value)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		for err := range errs {
+		for err := range out.Errors() {
 			errors = append(errors, err)
 		}
+	}()
+
+	go func() {
+		defer in.Close()
+		for _, value := range input {
+			in.Value(value)
+		}
+
 	}()
 
 	wg.Wait()
@@ -94,8 +96,8 @@ func runPipeline(pl Pipeline, input []context.Context) ([]context.Context, []err
 }
 
 func TestErrors(t *testing.T) {
-	stage := HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
-		errors <- fmt.Errorf("foo")
+	stage := HandlerFunc(func(ctx context.Context, out stream.Stream) {
+		out.Error(fmt.Errorf("foo"))
 	})
 
 	input := make([]context.Context, 10)
@@ -115,55 +117,23 @@ func TestErrors(t *testing.T) {
 	}
 }
 
-// func TestParallelPipe(t *testing.T) {
-// 	n := 10
-// 	in := make(chan context.Context)
-
-// 	go func() {
-// 		defer close(in)
-// 		for i := 0; i < n; i++ {
-// 			in <- NewContext(context.Background(), 1)
-// 		}
-// 	}()
-
-// 	// Make a stage that sleeps for a second and then returns some value.
-// 	// Running n of these stages in parallel should not take longer than
-// 	// running one.
-// 	stage := StageFunc(func(ctx context.Context) context.Context {
-// 		time.Sleep(time.Second * 1)
-// 		return NewContext(ctx, FromContext(ctx)+1)
-// 	})
-
-// 	pl := ParallelPipe(stage, n)
-// 	out := pl(in)
-// 	start := time.Now().UTC()
-
-// 	<-out
-
-// 	duration := time.Since(start)
-
-// 	if duration-time.Second > time.Millisecond*50 {
-// 		t.Errorf("Want %d, got %d", time.Second, duration)
-// 	}
-// }
-
 func TestCompose(t *testing.T) {
 	pl := Compose(Pipe(multiply(2)), Pipe(multiply(3)))
 
-	in := make(chan context.Context)
-	out, errors := pl(in)
+	in := stream.New()
+	out := pl(in)
 
 	go func() {
-		in <- NewContext(context.Background(), 1)
+		in.Value(NewContext(context.Background(), 1))
 	}()
 
 	go func() {
-		for err := range errors {
+		for err := range out.Errors() {
 			t.Errorf("%s", err.Error())
 		}
 	}()
 
-	ctx := <-out
+	ctx := <-out.Values()
 
 	want := 6
 	got := ctx.Value(valuekey).(int)

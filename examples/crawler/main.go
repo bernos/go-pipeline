@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
@@ -16,30 +17,33 @@ var (
 )
 
 func main() {
-	input := make(chan context.Context)
+	input := stream.New()
 
-	defer close(input)
+	defer input.Close()
 
 	crawler := pipeline.
-		ParallelPipe(fetchURL(&http.Client{}), 10).
+		Pipe(fetchURL(&http.Client{})).
 		Pipe(saveFile()).
 		Pipe(findURLS()).
 		Filter(dedupe())
 
-	out, _ := crawler(input)
+	out := crawler(input)
 	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*50)
 	done := ctx.Done()
 
-	input <- ctx
+	log.Println("Ready...")
+	input.Value(ctx)
+
+	log.Println("Starting...")
 
 	for {
 		select {
 		case <-done:
 			log.Printf("Finished!")
 			return
-		case ctx := <-out:
+		case ctx := <-out.Values():
 			go func(ctx context.Context) {
-				input <- ctx
+				input.Value(ctx)
 			}(ctx)
 		}
 	}

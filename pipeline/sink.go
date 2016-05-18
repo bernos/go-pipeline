@@ -1,26 +1,25 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 )
 
 // Sink creates a Pipeline that sends all input to fn, and swallows its output
 func Sink(fn func(ctx context.Context) error) Pipeline {
-	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
-		var (
-			errors = make(chan error)
-		)
+	return func(in stream.Stream) stream.Stream {
+		out := stream.New()
 
 		go func() {
-			defer close(errors)
+			defer out.Close()
 
-			for ctx := range in {
+			for ctx := range in.Values() {
 				if err := fn(ctx); err != nil {
-					errors <- err
+					out.Error(err)
 				}
 			}
 		}()
 
-		return nil, errors
+		return out
 	}
 }

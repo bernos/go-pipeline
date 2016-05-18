@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 )
 
@@ -10,23 +11,19 @@ type Predicate func(context.Context) bool
 // Filter filters values from the input channel that satisfy predicate and sends them
 // on the output channel
 func Filter(p Predicate) Pipeline {
-	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
-		var (
-			out    = make(chan context.Context)
-			errors = make(chan error)
-		)
+	return func(in stream.Stream) stream.Stream {
+		out := in.WithValues(make(chan context.Context))
 
 		go func() {
-			defer close(out)
-			defer close(errors)
+			defer out.Close()
 
-			for ctx := range in {
+			for ctx := range in.Values() {
 				if p(ctx) {
-					out <- ctx
+					out.Value(ctx)
 				}
 			}
 		}()
 
-		return out, errors
+		return out
 	}
 }
