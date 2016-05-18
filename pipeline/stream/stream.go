@@ -33,36 +33,31 @@ type stream struct {
 }
 
 func NewStream() Stream {
-	return &stream{}
-	// return &stream{
-	// 	values: make(chan context.Context),
-	// 	errors: make(chan error),
-	// }
+	return &stream{
+		values: make(chan context.Context),
+		errors: make(chan error),
+	}
 }
 
 func (s *stream) Values() <-chan context.Context {
-	return s.getValues()
+	return s.values
 }
 
 func (s *stream) Errors() <-chan error {
-	return s.getErrors()
+	return s.errors
 }
 
 func (s *stream) Value(ctx context.Context) {
-	s.getValues() <- ctx
+	s.values <- ctx
 }
 
 func (s *stream) Error(err error) {
-	s.getErrors() <- err
+	s.errors <- err
 }
 
 func (s *stream) Close() {
-	if s.errors != nil {
-		close(s.errors)
-	}
-	if s.values != nil {
-		close(s.values)
-	}
+	close(s.errors)
+	close(s.values)
 }
 
 func (s *stream) WithValues(values chan context.Context) Stream {
@@ -71,22 +66,14 @@ func (s *stream) WithValues(values chan context.Context) Stream {
 	// to send an error
 	newStream := &stream{
 		values: values,
-		errors: s.getErrors(),
+		errors: make(chan error),
 	}
+
+	go func() {
+		for err := range s.Errors() {
+			newStream.errors <- err
+		}
+	}()
 
 	return newStream
-}
-
-func (s *stream) getValues() chan context.Context {
-	if s.values == nil {
-		s.values = make(chan context.Context)
-	}
-	return s.values
-}
-
-func (s *stream) getErrors() chan error {
-	if s.errors == nil {
-		s.errors = make(chan error)
-	}
-	return s.errors
 }
