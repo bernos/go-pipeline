@@ -4,12 +4,26 @@ import (
 	"golang.org/x/net/context"
 )
 
+// Stream is an interface that facilitates sending values and errors through a pipeline
+// Internally the stream uses an error channel, and a Context channel for sending values
 type Stream interface {
+	// Send a value on the stream
 	Value(context.Context)
+
+	// Send an error on the stream
 	Error(error)
+
+	// Retrieve the read only values channel
 	Values() <-chan context.Context
+
+	// Retrieve the read only error channel
 	Errors() <-chan error
+
+	// Close the Stream. This will close both the error and value channels
 	Close()
+
+	// Create a child Stream, inherriting errors from the parent stream, with the provided
+	// values channel
 	WithValues(chan context.Context) Stream
 }
 
