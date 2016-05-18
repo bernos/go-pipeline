@@ -21,23 +21,26 @@ func main() {
 	defer close(input)
 
 	crawler := pipeline.
-		ParallelPipe(fetchURL(&http.Client{}), 10).
+		Pipe(fetchURL(&http.Client{})).
 		Pipe(saveFile()).
 		Pipe(findURLS()).
 		Filter(dedupe())
 
-	out, _ := crawler(input)
+	out := crawler(input)
 	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*50)
 	done := ctx.Done()
 
+	log.Println("Ready...")
 	input <- ctx
+
+	log.Println("Starting...")
 
 	for {
 		select {
 		case <-done:
 			log.Printf("Finished!")
 			return
-		case ctx := <-out:
+		case ctx := <-out.Values():
 			go func(ctx context.Context) {
 				input <- ctx
 			}(ctx)

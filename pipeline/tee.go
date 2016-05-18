@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"sync"
 )
@@ -10,11 +11,10 @@ import (
 // own go routine, so that the main pipeline is not blocked. The output of the secondary pipeline
 // is effectively swallowed
 func Tee(pipeline Pipeline) Pipeline {
-	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
+	return func(in <-chan context.Context) stream.Stream {
 		var (
 			wg         sync.WaitGroup
-			out        = make(chan context.Context)
-			errors     = make(chan error)
+			s          = stream.NewStream()
 			pipelineIn = make(chan context.Context)
 		)
 
@@ -22,8 +22,7 @@ func Tee(pipeline Pipeline) Pipeline {
 			pipeline(pipelineIn)
 
 			defer close(pipelineIn)
-			defer close(out)
-			defer close(errors)
+			defer s.Close()
 
 			for ctx := range in {
 				wg.Add(1)
@@ -33,12 +32,12 @@ func Tee(pipeline Pipeline) Pipeline {
 					pipelineIn <- ctx
 				}(ctx)
 
-				out <- ctx
+				s.Value(ctx)
 			}
 
 			wg.Wait()
 		}()
 
-		return out, errors
+		return s
 	}
 }

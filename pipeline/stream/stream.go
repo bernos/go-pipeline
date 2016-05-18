@@ -1,4 +1,4 @@
-package pipeline
+package stream
 
 import (
 	"golang.org/x/net/context"
@@ -10,7 +10,9 @@ type Stream interface {
 	Values() <-chan context.Context
 	Errors() <-chan error
 	Close()
+	WithValues(chan context.Context) Stream
 }
+
 type stream struct {
 	values chan context.Context
 	errors chan error
@@ -23,11 +25,11 @@ func NewStream() Stream {
 	}
 }
 
-func (s *stream) Values() chan context.Context {
+func (s *stream) Values() <-chan context.Context {
 	return s.values
 }
 
-func (s *stream) Errors() chan error {
+func (s *stream) Errors() <-chan error {
 	return s.errors
 }
 
@@ -42,4 +44,16 @@ func (s *stream) Error(err error) {
 func (s *stream) Close() {
 	close(s.errors)
 	close(s.values)
+}
+
+func (s *stream) WithValues(values chan context.Context) Stream {
+	// TODO: may need to forward errors, rather than close over them. If an earlier
+	// stream closes the error stream it may cause issues when a later stream tries
+	// to send an error
+	newStream := &stream{
+		values: values,
+		errors: s.errors,
+	}
+
+	return newStream
 }

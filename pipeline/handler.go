@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 )
 
@@ -8,13 +9,13 @@ import (
 // it, and then sends its output to the next Handler in pipeline through the output channel. Any
 // errors that are encountered should be sent on the error channel
 type Handler interface {
-	Handle(context.Context, chan<- context.Context, chan<- error)
+	Handle(context.Context, stream.Stream)
 }
 
 // StageFunc makes a regular func implement the Stage interface
-type HandlerFunc func(context.Context, chan<- context.Context, chan<- error)
+type HandlerFunc func(context.Context, stream.Stream)
 
 // Handle satisfies the Stage interface for StageFunc
-func (fn HandlerFunc) Handle(ctx context.Context, out chan<- context.Context, errors chan<- error) {
-	fn(ctx, out, errors)
+func (fn HandlerFunc) Handle(ctx context.Context, s stream.Stream) {
+	fn(ctx, s)
 }

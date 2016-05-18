@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"sync"
 )
@@ -16,28 +17,26 @@ func Pipe(stage Handler) Pipeline {
 // values from an input channel to them. The output of each instance of the
 // Stage function will be sent to the output channel
 func ParallelPipe(stage Handler, parallelism int) Pipeline {
-	return func(in <-chan context.Context) (<-chan context.Context, <-chan error) {
+	return func(in <-chan context.Context) stream.Stream {
 		var wg sync.WaitGroup
 		wg.Add(parallelism)
 
-		out := make(chan context.Context)
-		errors := make(chan error)
+		s := stream.NewStream()
 
 		for i := 0; i < parallelism; i++ {
 			go func() {
 				for ctx := range in {
-					stage.Handle(ctx, out, errors)
+					stage.Handle(ctx, s)
 				}
 				wg.Done()
 			}()
 		}
 
 		go func() {
-			defer close(out)
-			defer close(errors)
+			defer s.Close()
 			wg.Wait()
 		}()
 
-		return out, errors
+		return s
 	}
 }
