@@ -61,9 +61,6 @@ func (s *stream) Close() {
 }
 
 func (s *stream) WithValues(values chan context.Context) Stream {
-	// TODO: may need to forward errors, rather than close over them. If an earlier
-	// stream closes the error stream it may cause issues when a later stream tries
-	// to send an error
 	newStream := &stream{
 		values: values,
 		errors: make(chan error),
