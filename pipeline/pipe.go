@@ -17,26 +17,26 @@ func Pipe(stage Handler) Pipeline {
 // values from an input channel to them. The output of each instance of the
 // Stage function will be sent to the output channel
 func ParallelPipe(stage Handler, parallelism int) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
+	return func(in stream.Stream) stream.Stream {
 		var wg sync.WaitGroup
 		wg.Add(parallelism)
 
-		s := stream.NewStream()
+		out := in.WithValues(make(chan context.Context))
 
 		for i := 0; i < parallelism; i++ {
 			go func() {
-				for ctx := range in {
-					stage.Handle(ctx, s)
+				for ctx := range in.Values() {
+					stage.Handle(ctx, out)
 				}
 				wg.Done()
 			}()
 		}
 
 		go func() {
-			defer s.Close()
+			defer out.Close()
 			wg.Wait()
 		}()
 
-		return s
+		return out
 	}
 }

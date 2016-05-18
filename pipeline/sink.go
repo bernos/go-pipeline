@@ -7,19 +7,19 @@ import (
 
 // Sink creates a Pipeline that sends all input to fn, and swallows its output
 func Sink(fn func(ctx context.Context) error) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
-		s := stream.NewStream()
+	return func(in stream.Stream) stream.Stream {
+		out := stream.NewStream()
 
 		go func() {
-			defer s.Close()
+			defer out.Close()
 
-			for ctx := range in {
+			for ctx := range in.Values() {
 				if err := fn(ctx); err != nil {
-					s.Error(err)
+					out.Error(err)
 				}
 			}
 		}()
 
-		return s
+		return out
 	}
 }

@@ -11,33 +11,33 @@ import (
 // own go routine, so that the main pipeline is not blocked. The output of the secondary pipeline
 // is effectively swallowed
 func Tee(pipeline Pipeline) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
+	return func(in stream.Stream) stream.Stream {
 		var (
 			wg         sync.WaitGroup
-			s          = stream.NewStream()
-			pipelineIn = make(chan context.Context)
+			out        = stream.NewStream()
+			pipelineIn = in.WithValues(make(chan context.Context))
 		)
 
 		go func() {
 			pipeline(pipelineIn)
 
-			defer close(pipelineIn)
-			defer s.Close()
+			defer pipelineIn.Close()
+			defer out.Close()
 
-			for ctx := range in {
+			for ctx := range in.Values() {
 				wg.Add(1)
 
 				go func(ctx context.Context) {
 					defer wg.Done()
-					pipelineIn <- ctx
+					pipelineIn.Value(ctx)
 				}(ctx)
 
-				s.Value(ctx)
+				out.Value(ctx)
 			}
 
 			wg.Wait()
 		}()
 
-		return s
+		return out
 	}
 }

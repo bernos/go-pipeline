@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
@@ -16,9 +17,9 @@ var (
 )
 
 func main() {
-	input := make(chan context.Context)
+	input := stream.NewStream()
 
-	defer close(input)
+	defer input.Close()
 
 	crawler := pipeline.
 		Pipe(fetchURL(&http.Client{})).
@@ -31,7 +32,7 @@ func main() {
 	done := ctx.Done()
 
 	log.Println("Ready...")
-	input <- ctx
+	input.Value(ctx)
 
 	log.Println("Starting...")
 
@@ -42,7 +43,7 @@ func main() {
 			return
 		case ctx := <-out.Values():
 			go func(ctx context.Context) {
-				input <- ctx
+				input.Value(ctx)
 			}(ctx)
 		}
 	}

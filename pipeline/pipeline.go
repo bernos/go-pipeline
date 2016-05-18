@@ -8,17 +8,17 @@ import (
 // Pipeline connects an input chan to an output chan. A Pipeline func
 // will normally wrap a Stage, and take care of managing channel use, leaving
 // the Stage free to concentrate on data manipulation using the context
-type Pipeline func(in <-chan context.Context) stream.Stream
+type Pipeline func(stream.Stream) stream.Stream
 
 // Run the pipeline using ctx as a starting value. If the context has a timeout or
 // deadline, the pipeline will be stopped when it is reached
 func (p Pipeline) Run(ctx context.Context) stream.Stream {
-	in := make(chan context.Context)
+	in := stream.NewStream()
 	done := ctx.Done()
 
 	go func() {
-		defer close(in)
-		in <- ctx
+		defer in.Close()
+		in.Value(ctx)
 		<-done
 	}()
 
@@ -38,18 +38,24 @@ func (p Pipeline) Filter(predicate Predicate) Pipeline {
 	return Compose(Filter(predicate), p)
 }
 
-// Compose creates a new Pipeline by sending the output of g to the input of f
 func Compose(f, g Pipeline) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
-		gStream := g(in)
-		fStream := f(gStream.Values())
-
-		go func() {
-			for err := range gStream.Errors() {
-				fStream.Error(err)
-			}
-		}()
-
-		return fStream
+	return func(in stream.Stream) stream.Stream {
+		return f(g(in))
 	}
 }
+
+// Compose creates a new Pipeline by sending the output of g to the input of f
+// func _Compose(f, g Pipeline) Pipeline {
+// 	return func(in <-chan context.Context) stream.Stream {
+// 		gStream := g(in)
+// 		fStream := f(gStream.Values())
+
+// 		go func() {
+// 			for err := range gStream.Errors() {
+// 				fStream.Error(err)
+// 			}
+// 		}()
+
+// 		return fStream
+// 	}
+// }

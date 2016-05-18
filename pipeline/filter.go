@@ -11,19 +11,19 @@ type Predicate func(context.Context) bool
 // Filter filters values from the input channel that satisfy predicate and sends them
 // on the output channel
 func Filter(p Predicate) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
-		s := stream.NewStream()
+	return func(in stream.Stream) stream.Stream {
+		out := in.WithValues(make(chan context.Context))
 
 		go func() {
-			defer s.Close()
+			defer out.Close()
 
-			for ctx := range in {
+			for ctx := range in.Values() {
 				if p(ctx) {
-					s.Value(ctx)
+					out.Value(ctx)
 				}
 			}
 		}()
 
-		return s
+		return out
 	}
 }

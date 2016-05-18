@@ -9,10 +9,10 @@ import (
 // Parallel runs n instances of a Pipeline in parallel, collecting all output and errors
 // onto the output channels
 func Parallel(pipeline Pipeline, n int) Pipeline {
-	return func(in <-chan context.Context) stream.Stream {
+	return func(in stream.Stream) stream.Stream {
 		var (
-			wg sync.WaitGroup
-			s  = stream.NewStream()
+			wg  sync.WaitGroup
+			out = in.WithValues(make(chan context.Context))
 		)
 
 		for i := 0; i < n; i++ {
@@ -21,17 +21,16 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 			go func() {
 				defer wg.Done()
 
-				pipelineIn := make(chan context.Context)
-				// pipelineOut, pipelineErrors := pipeline(pipelineIn)
+				pipelineIn := stream.NewStream()
 				pipeOut := pipeline(pipelineIn)
 
-				defer close(pipelineIn)
+				defer pipelineIn.Close()
 
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					for err := range pipeOut.Errors() {
-						s.Error(err)
+						out.Error(err)
 					}
 				}()
 
@@ -39,21 +38,21 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 				go func() {
 					defer wg.Done()
 					for ctx := range pipeOut.Values() {
-						s.Value(ctx)
+						out.Value(ctx)
 					}
 				}()
 
-				for ctx := range in {
-					pipelineIn <- ctx
+				for ctx := range in.Values() {
+					pipelineIn.Value(ctx)
 				}
 			}()
 		}
 
 		go func() {
-			defer s.Close()
+			defer out.Close()
 			wg.Wait()
 		}()
 
-		return s
+		return out
 	}
 }
