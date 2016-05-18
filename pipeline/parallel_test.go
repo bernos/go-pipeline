@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"testing"
 	"time"
@@ -9,9 +10,9 @@ import (
 func TestParallel(t *testing.T) {
 	n := 50
 
-	stage := HandlerFunc(func(ctx context.Context, out chan context.Context, errors chan error) {
+	stage := HandlerFunc(func(ctx context.Context, out stream.Stream) {
 		time.Sleep(time.Second)
-		out <- NewContext(context.Background(), FromContext(ctx)+1)
+		out.Value(NewContext(context.Background(), FromContext(ctx)+1))
 	})
 
 	values := make([]context.Context, n)
