@@ -33,31 +33,36 @@ type stream struct {
 }
 
 func NewStream() Stream {
-	return &stream{
-		values: make(chan context.Context),
-		errors: make(chan error),
-	}
+	return &stream{}
+	// return &stream{
+	// 	values: make(chan context.Context),
+	// 	errors: make(chan error),
+	// }
 }
 
 func (s *stream) Values() <-chan context.Context {
-	return s.values
+	return s.getValues()
 }
 
 func (s *stream) Errors() <-chan error {
-	return s.errors
+	return s.getErrors()
 }
 
 func (s *stream) Value(ctx context.Context) {
-	s.values <- ctx
+	s.getValues() <- ctx
 }
 
 func (s *stream) Error(err error) {
-	s.errors <- err
+	s.getErrors() <- err
 }
 
 func (s *stream) Close() {
-	close(s.errors)
-	close(s.values)
+	if s.errors != nil {
+		close(s.errors)
+	}
+	if s.values != nil {
+		close(s.values)
+	}
 }
 
 func (s *stream) WithValues(values chan context.Context) Stream {
@@ -66,8 +71,22 @@ func (s *stream) WithValues(values chan context.Context) Stream {
 	// to send an error
 	newStream := &stream{
 		values: values,
-		errors: s.errors,
+		errors: s.getErrors(),
 	}
 
 	return newStream
+}
+
+func (s *stream) getValues() chan context.Context {
+	if s.values == nil {
+		s.values = make(chan context.Context)
+	}
+	return s.values
+}
+
+func (s *stream) getErrors() chan error {
+	if s.errors == nil {
+		s.errors = make(chan error)
+	}
+	return s.errors
 }
