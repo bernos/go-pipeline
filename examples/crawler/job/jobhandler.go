@@ -34,7 +34,7 @@ func (m Mapper) Map(ctx context.Context) (context.Context, error) {
 	if j, ok := FromContext(ctx); ok {
 		value, err := m(j)
 
-		if err == nil {
+		if err != nil {
 			return nil, err
 		}
 
@@ -50,7 +50,7 @@ func (m FlatMapper) FlatMap(ctx context.Context) ([]context.Context, error) {
 	if j, ok := FromContext(ctx); ok {
 		jobs, err := m(j)
 
-		if err == nil {
+		if err != nil {
 			return nil, err
 		}
 

@@ -30,6 +30,22 @@ func (p Pipeline) Compose(next Pipeline) Pipeline {
 	return Compose(next, p)
 }
 
+func (p Pipeline) Map(m Mapper) Pipeline {
+	return Compose(Map(m), p)
+}
+
+func (p Pipeline) PMap(m Mapper, n int) Pipeline {
+	return Compose(PMap(m, n), p)
+}
+
+func (p Pipeline) FlatMap(m FlatMapper) Pipeline {
+	return Compose(FlatMap(m), p)
+}
+
+func (p Pipeline) PFlatMap(m FlatMapper, n int) Pipeline {
+	return Compose(PFlatMap(m, n), p)
+}
+
 func (p Pipeline) Pipe(next Handler) Pipeline {
 	return Compose(Pipe(next), p)
 }

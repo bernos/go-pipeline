@@ -22,13 +22,13 @@ func main() {
 	defer input.Close()
 
 	crawler := pipeline.
-		Pipe(fetchURL(&http.Client{})).
-		Pipe(saveFile()).
-		Pipe(findURLS()).
+		PMap(fetchURLMap(&http.Client{}), 2).
+		Map(saveFileMap()).
+		FlatMap(findURLSMap()).
 		Filter(dedupe())
 
 	out := crawler(input)
-	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*50)
+	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*25)
 	done := ctx.Done()
 
 	log.Println("Ready...")
@@ -43,7 +43,12 @@ func main() {
 			return
 		case ctx := <-out.Values():
 			go func(ctx context.Context) {
-				input.Value(ctx)
+				select {
+				case <-done:
+					return
+				default:
+					input.Value(ctx)
+				}
 			}(ctx)
 		}
 	}
@@ -62,6 +67,52 @@ func dedupe() pipeline.Predicate {
 
 		return !seen
 	}
+}
+
+func fetchURLMap(client *http.Client) pipeline.Mapper {
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		log.Printf("fetching %s\n", j.URL)
+
+		resp, err := client.Get(j.URL)
+
+		if err != nil {
+			return j, err
+		}
+
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return j, err
+		}
+
+		j.Body = string(body)
+
+		return j, nil
+	})
+}
+
+func saveFileMap() pipeline.Mapper {
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		log.Printf("Saving %s\n", j.URL)
+		return j, nil
+	})
+}
+
+func findURLSMap() pipeline.FlatMapper {
+	return job.FlatMapper(func(j job.Job) ([]job.Job, error) {
+		result := urlRegexp.FindAllString(j.Body, -1)
+		jobs := make([]job.Job, len(result))
+		log.Printf("Found %d urls", len(result))
+
+		if result != nil {
+			for i, url := range result {
+				jobs[i] = job.Job{URL: url}
+			}
+		}
+
+		return jobs, nil
+	})
 }
 
 func fetchURL(client *http.Client) pipeline.Handler {
