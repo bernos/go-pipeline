@@ -14,7 +14,7 @@ func Tee(pipeline Pipeline) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
 			wg         sync.WaitGroup
-			out        = stream.NewStream()
+			out        = stream.New()
 			pipelineIn = in.WithValues(make(chan context.Context))
 		)
 

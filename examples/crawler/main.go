@@ -17,7 +17,7 @@ var (
 )
 
 func main() {
-	input := stream.NewStream()
+	input := stream.New()
 
 	defer input.Close()
 

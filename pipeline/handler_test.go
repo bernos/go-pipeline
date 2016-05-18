@@ -62,7 +62,7 @@ func runPipeline(pl Pipeline, input []context.Context) ([]context.Context, []err
 		wg     sync.WaitGroup
 		values = make([]context.Context, 0)
 		errors = make([]error, 0)
-		in     = stream.NewStream()
+		in     = stream.New()
 	)
 
 	out := pl(in)
@@ -120,7 +120,7 @@ func TestErrors(t *testing.T) {
 func TestCompose(t *testing.T) {
 	pl := Compose(Pipe(multiply(2)), Pipe(multiply(3)))
 
-	in := stream.NewStream()
+	in := stream.New()
 	out := pl(in)
 
 	go func() {

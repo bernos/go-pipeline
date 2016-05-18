@@ -21,7 +21,7 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 			go func() {
 				defer wg.Done()
 
-				pipelineIn := stream.NewStream()
+				pipelineIn := stream.New()
 				pipeOut := pipeline(pipelineIn)
 
 				defer pipelineIn.Close()

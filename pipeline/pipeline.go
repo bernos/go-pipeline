@@ -13,7 +13,7 @@ type Pipeline func(stream.Stream) stream.Stream
 // Run the pipeline using ctx as a starting value. If the context has a timeout or
 // deadline, the pipeline will be stopped when it is reached
 func (p Pipeline) Run(ctx context.Context) stream.Stream {
-	in := stream.NewStream()
+	in := stream.New()
 	done := ctx.Done()
 
 	go func() {

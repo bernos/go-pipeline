@@ -32,7 +32,7 @@ type stream struct {
 	errors chan error
 }
 
-func NewStream() Stream {
+func New() Stream {
 	return &stream{
 		values: make(chan context.Context),
 		errors: make(chan error),
