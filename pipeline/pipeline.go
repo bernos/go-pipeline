@@ -3,6 +3,8 @@ package pipeline
 import (
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
+	"sync"
+	"time"
 )
 
 // Pipeline connects an input chan to an output chan. A Pipeline func
@@ -23,6 +25,55 @@ func (p Pipeline) Run(ctx context.Context) stream.Stream {
 	}()
 
 	return p(in)
+}
+
+func (p Pipeline) Loop(ctx context.Context) stream.Stream {
+	var (
+		wg sync.WaitGroup
+
+		// Expose the raw value channel for our feedback loop, so that we
+		// can use it in a select statement
+		buf = make(chan context.Context)
+		in  = stream.New().WithValues(buf)
+
+		echo = stream.New()
+		done = ctx.Done()
+		out  = p(in)
+	)
+
+	go func() {
+		defer in.Close()
+		defer echo.Close()
+
+		for {
+			select {
+			case <-done:
+				wg.Wait()
+				return
+			case ctx := <-out.Values():
+				wg.Add(1)
+				go func(ctx context.Context) {
+					defer wg.Done()
+					ticker := time.NewTicker(time.Nanosecond)
+
+					for {
+						select {
+						case buf <- ctx:
+							echo.Value(ctx)
+							return
+						case <-ticker.C:
+						case <-done:
+							return
+						}
+					}
+				}(ctx)
+			}
+		}
+	}()
+
+	in.Value(ctx)
+
+	return echo
 }
 
 // Compose sends the output of Pipeline p to the input of Pipeline next

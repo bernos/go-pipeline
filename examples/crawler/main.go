@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
-	"github.com/bernos/go-pipeline/pipeline/stream"
+	// "github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
@@ -17,33 +17,20 @@ var (
 )
 
 func main() {
-	input := stream.New()
 
 	crawler := pipeline.
-		PMap(fetchURLMap(&http.Client{}), 5).
+		PMap(fetchURLMap(&http.Client{}), 20).
 		Map(saveFileMap()).
 		FlatMap(findURLSMap()).
-		Filter(dedupe()) //.
-	// Map(counter())
+		Filter(dedupe())
 
-	out := crawler(input)
 	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
-	done := ctx.Done()
-	finished := false
 
-	input.Value(ctx)
+	out := crawler.Loop(ctx)
 
-	for !finished {
-		time.Sleep(time.Millisecond * 10)
-
-		select {
-		case <-done:
-			finished = true
-		case ctx := <-out.Values():
-			go func(ctx context.Context) {
-				input.Value(ctx)
-			}(ctx)
-		}
+	for ctx := range out.Values() {
+		j, _ := job.FromContext(ctx)
+		log.Printf("Finished one - %s\n", j.URL)
 	}
 
 	log.Println("Done!")
@@ -57,6 +44,7 @@ func dedupe() pipeline.Predicate {
 
 		if j, ok := job.FromContext(ctx); ok {
 			seen = history[j.URL]
+			// log.Printf("Seen %s - %t", j.URL, seen)
 			history[j.URL] = true
 		}
 
@@ -108,6 +96,7 @@ func findURLSMap() pipeline.FlatMapper {
 		result := urlRegexp.FindAllString(j.Body, -1)
 		jobs := make([]job.Job, len(result))
 		log.Printf("Found %d urls", len(result))
+		// log.Printf("%v\n", result)
 
 		if result != nil {
 			for i, url := range result {
