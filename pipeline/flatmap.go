@@ -40,6 +40,7 @@ func PFlatMap(m FlatMapper, n int) Pipeline {
 
 		for i := 0; i < n; i++ {
 			go func() {
+				defer wg.Done()
 				for ctx := range in.Values() {
 					values, err := m.FlatMap(ctx)
 
@@ -51,7 +52,6 @@ func PFlatMap(m FlatMapper, n int) Pipeline {
 						out.Error(err)
 					}
 				}
-				wg.Done()
 			}()
 		}
 

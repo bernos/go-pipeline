@@ -19,39 +19,34 @@ var (
 func main() {
 	input := stream.New()
 
-	defer input.Close()
-
 	crawler := pipeline.
-		PMap(fetchURLMap(&http.Client{}), 2).
+		PMap(fetchURLMap(&http.Client{}), 5).
 		Map(saveFileMap()).
 		FlatMap(findURLSMap()).
-		Filter(dedupe())
+		Filter(dedupe()) //.
+	// Map(counter())
 
 	out := crawler(input)
-	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*25)
+	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
 	done := ctx.Done()
+	finished := false
 
-	log.Println("Ready...")
 	input.Value(ctx)
 
-	log.Println("Starting...")
+	for !finished {
+		time.Sleep(time.Millisecond * 10)
 
-	for {
 		select {
 		case <-done:
-			log.Printf("Finished!")
-			return
+			finished = true
 		case ctx := <-out.Values():
 			go func(ctx context.Context) {
-				select {
-				case <-done:
-					return
-				default:
-					input.Value(ctx)
-				}
+				input.Value(ctx)
 			}(ctx)
 		}
 	}
+
+	log.Println("Done!")
 }
 
 func dedupe() pipeline.Predicate {
@@ -95,6 +90,15 @@ func fetchURLMap(client *http.Client) pipeline.Mapper {
 func saveFileMap() pipeline.Mapper {
 	return job.Mapper(func(j job.Job) (job.Job, error) {
 		log.Printf("Saving %s\n", j.URL)
+		return j, nil
+	})
+}
+
+func counter() pipeline.Mapper {
+	count := 0
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		count++
+		log.Printf("Counted %d\n", count)
 		return j, nil
 	})
 }
