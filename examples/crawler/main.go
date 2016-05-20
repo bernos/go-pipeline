@@ -18,16 +18,23 @@ var (
 
 func main() {
 
+	// A webcrawler pipeline that will recursively crawl a website
 	crawler := pipeline.
-		PMap(fetchURLMap(&http.Client{}), 20).
-		Map(saveFileMap()).
-		FlatMap(findURLSMap()).
+		PMap(fetchURL(&http.Client{}), 20).
+		Map(saveFile()).
+		FlatMap(findURLS()).
 		Filter(dedupe())
 
+	// Point the crawler at wikipedia, and configure a timeout using the context
 	ctx, cancel := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
 
+	// Run the crawler pipeline in Loop mode, feeding its output stream back to
+	// its input stream
 	out := crawler.Loop(ctx)
 
+	// Start a go routine to monitor for errors on the pipeline error channel.
+	// For now we will just stop the pipeline, using the cancel func for our
+	// context
 	go func() {
 		for err := range out.Errors() {
 			log.Printf("Error: %s\n", err.Error())
@@ -35,6 +42,7 @@ func main() {
 		}
 	}()
 
+	// Print out the pipeline output
 	for ctx := range out.Values() {
 		j, _ := job.FromContext(ctx)
 		log.Printf("Finished one - %s\n", j.URL)
@@ -43,6 +51,8 @@ func main() {
 	log.Println("Done!")
 }
 
+// dedupe returns a pipeline Predicate that returns false if we have seen the
+// URL to be crawled before
 func dedupe() pipeline.Predicate {
 	history := make(map[string]bool)
 
@@ -59,7 +69,9 @@ func dedupe() pipeline.Predicate {
 	}
 }
 
-func fetchURLMap(client *http.Client) pipeline.Mapper {
+// fetchURL returns a pipeline Mapper that fetches the content for a URL and
+// adds it to the job in the context
+func fetchURL(client *http.Client) pipeline.Mapper {
 	return job.Mapper(func(j job.Job) (job.Job, error) {
 		log.Printf("fetching %s\n", j.URL)
 
@@ -82,23 +94,19 @@ func fetchURLMap(client *http.Client) pipeline.Mapper {
 	})
 }
 
-func saveFileMap() pipeline.Mapper {
+// saveFile returns a pipeline Mapper that saves the content downloaded from
+// a url to disk.
+// TODO: implement the saving bit
+func saveFile() pipeline.Mapper {
 	return job.Mapper(func(j job.Job) (job.Job, error) {
 		log.Printf("Saving %s\n", j.URL)
 		return j, nil
 	})
 }
 
-func counter() pipeline.Mapper {
-	count := 0
-	return job.Mapper(func(j job.Job) (job.Job, error) {
-		count++
-		log.Printf("Counted %d\n", count)
-		return j, nil
-	})
-}
-
-func findURLSMap() pipeline.FlatMapper {
+// findURLS returns a pipeline FlatMapper that scans the content downloaded from
+// a urls for any URLs that appear in it
+func findURLS() pipeline.FlatMapper {
 	return job.FlatMapper(func(j job.Job) ([]job.Job, error) {
 		result := urlRegexp.FindAllString(j.Body, -1)
 		jobs := make([]job.Job, len(result))
@@ -112,48 +120,5 @@ func findURLSMap() pipeline.FlatMapper {
 		}
 
 		return jobs, nil
-	})
-}
-
-func fetchURL(client *http.Client) pipeline.Handler {
-	return job.Handler(func(j job.Job, out func(job.Job) error) error {
-		log.Printf("fetching %s\n", j.URL)
-
-		resp, err := client.Get(j.URL)
-
-		if err != nil {
-			return err
-		}
-
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-
-		if err != nil {
-			return err
-		}
-
-		j.Body = string(body)
-
-		return out(j)
-	})
-}
-
-func saveFile() pipeline.Handler {
-	return job.Handler(func(j job.Job, out func(job.Job) error) error {
-		log.Printf("Saving %s\n", j.URL)
-		return out(j)
-	})
-}
-
-func findURLS() pipeline.Handler {
-	return job.Handler(func(j job.Job, out func(job.Job) error) error {
-		result := urlRegexp.FindAllString(j.Body, -1)
-		log.Printf("Found %d urls", len(result))
-		if result != nil {
-			for _, url := range result {
-				out(job.Job{URL: url})
-			}
-		}
-		return nil
 	})
 }
