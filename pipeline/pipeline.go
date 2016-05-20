@@ -27,6 +27,10 @@ func (p Pipeline) Run(ctx context.Context) stream.Stream {
 	return p(in)
 }
 
+// Loop will run a pipeline iteratively, in its own go routine, feeding all values received
+// from the output stream back to the input stream. The loop wil continue until ctx is cancelled.
+// All values and errors received from the output stream will also be echoed to the Stream
+// returned by Loop
 func (p Pipeline) Loop(ctx context.Context) stream.Stream {
 	var (
 		wg sync.WaitGroup
@@ -68,6 +72,12 @@ func (p Pipeline) Loop(ctx context.Context) stream.Stream {
 					}
 				}(ctx)
 			}
+		}
+	}()
+
+	go func() {
+		for err := range out.Errors() {
+			echo.Error(err)
 		}
 	}()
 

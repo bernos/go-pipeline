@@ -24,9 +24,16 @@ func main() {
 		FlatMap(findURLSMap()).
 		Filter(dedupe())
 
-	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
+	ctx, cancel := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
 
 	out := crawler.Loop(ctx)
+
+	go func() {
+		for err := range out.Errors() {
+			log.Printf("Error: %s\n", err.Error())
+			cancel()
+		}
+	}()
 
 	for ctx := range out.Values() {
 		j, _ := job.FromContext(ctx)
