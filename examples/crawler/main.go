@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
-	"github.com/bernos/go-pipeline/pipeline/stream"
+	// "github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
@@ -17,36 +17,30 @@ var (
 )
 
 func main() {
-	input := stream.New()
-
-	defer input.Close()
 
 	crawler := pipeline.
-		Pipe(fetchURL(&http.Client{})).
-		Pipe(saveFile()).
-		Pipe(findURLS()).
+		PMap(fetchURLMap(&http.Client{}), 20).
+		Map(saveFileMap()).
+		FlatMap(findURLSMap()).
 		Filter(dedupe())
 
-	out := crawler(input)
-	ctx, _ := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*50)
-	done := ctx.Done()
+	ctx, cancel := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
 
-	log.Println("Ready...")
-	input.Value(ctx)
+	out := crawler.Loop(ctx)
 
-	log.Println("Starting...")
-
-	for {
-		select {
-		case <-done:
-			log.Printf("Finished!")
-			return
-		case ctx := <-out.Values():
-			go func(ctx context.Context) {
-				input.Value(ctx)
-			}(ctx)
+	go func() {
+		for err := range out.Errors() {
+			log.Printf("Error: %s\n", err.Error())
+			cancel()
 		}
+	}()
+
+	for ctx := range out.Values() {
+		j, _ := job.FromContext(ctx)
+		log.Printf("Finished one - %s\n", j.URL)
 	}
+
+	log.Println("Done!")
 }
 
 func dedupe() pipeline.Predicate {
@@ -57,11 +51,68 @@ func dedupe() pipeline.Predicate {
 
 		if j, ok := job.FromContext(ctx); ok {
 			seen = history[j.URL]
+			// log.Printf("Seen %s - %t", j.URL, seen)
 			history[j.URL] = true
 		}
 
 		return !seen
 	}
+}
+
+func fetchURLMap(client *http.Client) pipeline.Mapper {
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		log.Printf("fetching %s\n", j.URL)
+
+		resp, err := client.Get(j.URL)
+
+		if err != nil {
+			return j, err
+		}
+
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return j, err
+		}
+
+		j.Body = string(body)
+
+		return j, nil
+	})
+}
+
+func saveFileMap() pipeline.Mapper {
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		log.Printf("Saving %s\n", j.URL)
+		return j, nil
+	})
+}
+
+func counter() pipeline.Mapper {
+	count := 0
+	return job.Mapper(func(j job.Job) (job.Job, error) {
+		count++
+		log.Printf("Counted %d\n", count)
+		return j, nil
+	})
+}
+
+func findURLSMap() pipeline.FlatMapper {
+	return job.FlatMapper(func(j job.Job) ([]job.Job, error) {
+		result := urlRegexp.FindAllString(j.Body, -1)
+		jobs := make([]job.Job, len(result))
+		log.Printf("Found %d urls", len(result))
+		// log.Printf("%v\n", result)
+
+		if result != nil {
+			for i, url := range result {
+				jobs[i] = job.Job{URL: url}
+			}
+		}
+
+		return jobs, nil
+	})
 }
 
 func fetchURL(client *http.Client) pipeline.Handler {
