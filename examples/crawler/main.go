@@ -18,7 +18,8 @@ var (
 
 func main() {
 
-	// A webcrawler pipeline that will recursively crawl a website
+	// A webcrawler pipeline that will recursively crawl a website, downloading content
+	// in parallel, and removing duplicate urls
 	crawler := pipeline.
 		PMap(fetchURL(&http.Client{}), 20).
 		Map(saveFile()).
