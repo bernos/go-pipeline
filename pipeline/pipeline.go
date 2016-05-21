@@ -107,12 +107,20 @@ func (p Pipeline) PFlatMap(m FlatMapper, n int) Pipeline {
 	return Compose(PFlatMap(m, n), p)
 }
 
-func (p Pipeline) Pipe(next Handler) Pipeline {
-	return Compose(Pipe(next), p)
-}
-
 func (p Pipeline) Filter(predicate Predicate) Pipeline {
 	return Compose(Filter(predicate), p)
+}
+
+func (p Pipeline) Take(n int) Pipeline {
+	return Compose(Take(n), p)
+}
+
+func (p Pipeline) TakeUntil(predicate Predicate) Pipeline {
+	return Compose(TakeUntil(predicate), p)
+}
+
+func (p Pipeline) TakeWhile(predicate Predicate) Pipeline {
+	return Compose(TakeWhile(predicate), p)
 }
 
 func Compose(f, g Pipeline) Pipeline {
@@ -120,19 +128,3 @@ func Compose(f, g Pipeline) Pipeline {
 		return f(g(in))
 	}
 }
-
-// Compose creates a new Pipeline by sending the output of g to the input of f
-// func _Compose(f, g Pipeline) Pipeline {
-// 	return func(in <-chan context.Context) stream.Stream {
-// 		gStream := g(in)
-// 		fStream := f(gStream.Values())
-
-// 		go func() {
-// 			for err := range gStream.Errors() {
-// 				fStream.Error(err)
-// 			}
-// 		}()
-
-// 		return fStream
-// 	}
-// }
