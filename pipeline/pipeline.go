@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-// Pipeline connects an input chan to an output chan. A Pipeline func
-// will normally wrap a Stage, and take care of managing channel use, leaving
-// the Stage free to concentrate on data manipulation using the context
+// Pipeline consumes values from an input stream, processes them, and then sends
+// new values on an output stream. New pipelines can be created by composing
+// existing Pipelines
 type Pipeline func(stream.Stream) stream.Stream
 
-// Run the pipeline using ctx as a starting value. If the context has a timeout or
-// deadline, the pipeline will be stopped when it is reached
+// Run the pipeline using ctx as a starting value. The pipeline will be stopped when
+// ctx is cancelled
 func (p Pipeline) Run(ctx context.Context) stream.Stream {
 	in := stream.New()
 	done := ctx.Done()
@@ -86,7 +86,8 @@ func (p Pipeline) Loop(ctx context.Context) stream.Stream {
 	return echo
 }
 
-// Compose sends the output of Pipeline p to the input of Pipeline next
+// Compose creates a new pipeline by passing the output of one pipeline to the input
+// of the next
 func (p Pipeline) Compose(next Pipeline) Pipeline {
 	return Compose(next, p)
 }
@@ -123,6 +124,8 @@ func (p Pipeline) TakeWhile(predicate Predicate) Pipeline {
 	return Compose(TakeWhile(predicate), p)
 }
 
+// Compose creates a new pipeline by passing the output of one pipeline to the input
+// of the next
 func Compose(f, g Pipeline) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		return f(g(in))
