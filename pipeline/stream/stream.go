@@ -39,6 +39,13 @@ func New() Stream {
 	}
 }
 
+func WithValues(values chan context.Context) Stream {
+	return &stream{
+		values: values,
+		errors: make(chan error),
+	}
+}
+
 func (s *stream) Values() <-chan context.Context {
 	return s.values
 }

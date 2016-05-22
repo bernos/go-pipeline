@@ -38,7 +38,7 @@ func (p Pipeline) Loop(ctx context.Context) stream.Stream {
 		// Expose the raw value channel for our feedback loop, so that we
 		// can use it in a select statement
 		buf = make(chan context.Context)
-		in  = stream.New().WithValues(buf)
+		in  = stream.WithValues(buf)
 
 		echo = stream.New()
 		done = ctx.Done()
