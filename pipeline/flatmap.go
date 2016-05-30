@@ -32,8 +32,8 @@ func FlatMap(m FlatMapper) Pipeline {
 func PFlatMap(m FlatMapper, n int) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			wg  sync.WaitGroup
-			out = in.WithValues(make(chan context.Context))
+			wg       sync.WaitGroup
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		wg.Add(n)
@@ -43,7 +43,6 @@ func PFlatMap(m FlatMapper, n int) Pipeline {
 				defer wg.Done()
 				for ctx := range in.Values() {
 					values, err := m.FlatMap(ctx)
-
 					if err == nil {
 						for v := range values {
 							out.Value(values[v])
@@ -56,7 +55,7 @@ func PFlatMap(m FlatMapper, n int) Pipeline {
 		}
 
 		go func() {
-			defer out.Close()
+			defer cls()
 			wg.Wait()
 		}()
 

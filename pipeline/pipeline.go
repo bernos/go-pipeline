@@ -4,7 +4,6 @@ import (
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"sync"
-	"time"
 )
 
 // Pipeline consumes values from an input stream, processes them, and then sends
@@ -15,11 +14,11 @@ type Pipeline func(stream.Stream) stream.Stream
 // Run the pipeline using ctx as a starting value. The pipeline will be stopped when
 // ctx is cancelled
 func (p Pipeline) Run(ctx context.Context) stream.Stream {
-	in := stream.New()
+	in, cls := stream.New()
 	done := ctx.Done()
 
 	go func() {
-		defer in.Close()
+		defer cls()
 		in.Value(ctx)
 		<-done
 	}()
@@ -35,49 +34,46 @@ func (p Pipeline) Loop(ctx context.Context) stream.Stream {
 	var (
 		wg sync.WaitGroup
 
+		done            = ctx.Done()
+		echo, closeEcho = stream.New()
+
 		// Expose the raw value channel for our feedback loop, so that we
 		// can use it in a select statement
-		buf = make(chan context.Context)
-		in  = stream.WithValues(buf)
-
-		echo = stream.New()
-		done = ctx.Done()
-		out  = p(in)
+		buf         = make(chan context.Context)
+		in, closeIn = echo.WithValues(buf)
+		out         = p(in)
 	)
 
 	go func() {
-		defer in.Close()
-		defer echo.Close()
+
+		defer func() {
+			wg.Wait()
+			closeIn()
+			closeEcho()
+		}()
 
 		for {
 			select {
 			case <-done:
-				wg.Wait()
 				return
 			case ctx := <-out.Values():
 				wg.Add(1)
 				go func(ctx context.Context) {
 					defer wg.Done()
-					ticker := time.NewTicker(time.Nanosecond)
+					// ticker := time.NewTicker(time.Nanosecond)
 
 					for {
 						select {
 						case buf <- ctx:
 							echo.Value(ctx)
 							return
-						case <-ticker.C:
+						// case <-ticker.C:
 						case <-done:
 							return
 						}
 					}
 				}(ctx)
 			}
-		}
-	}()
-
-	go func() {
-		for err := range out.Errors() {
-			echo.Error(err)
 		}
 	}()
 

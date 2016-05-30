@@ -8,10 +8,10 @@ import (
 // Sink creates a Pipeline that sends all input to fn, and swallows its output
 func Sink(fn func(ctx context.Context) error) Pipeline {
 	return func(in stream.Stream) stream.Stream {
-		out := stream.New()
+		out, cls := stream.New()
 
 		go func() {
-			defer out.Close()
+			defer cls()
 
 			for ctx := range in.Values() {
 				if err := fn(ctx); err != nil {

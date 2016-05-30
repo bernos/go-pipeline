@@ -24,8 +24,7 @@ func main() {
 		PMap(fetchURL(&http.Client{}), 20).
 		Map(saveFile()).
 		FlatMap(findURLS()).
-		Filter(dedupe()).
-		Take(2)
+		Filter(dedupe())
 
 	// Point the crawler at wikipedia, and configure a timeout using the context
 	ctx, cancel := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)

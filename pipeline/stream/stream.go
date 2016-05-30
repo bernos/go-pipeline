@@ -1,3 +1,6 @@
+// Package stream implements a stream used to pass values and errors between pipeline
+// functions. Values are wrapped in context.Context, and internally channels are used
+// for moving errors and values around
 package stream
 
 import (
@@ -20,30 +23,44 @@ type Stream interface {
 	Errors() <-chan error
 
 	// Close the Stream. This will close both the error and value channels
-	Close()
+	// Close()
+
+	// Retrieve the done channel
+	Done() <-chan struct{}
 
 	// Create a child Stream, inherriting errors from the parent stream, with the provided
 	// values channel
-	WithValues(chan context.Context) Stream
+	WithValues(chan context.Context) (Stream, CloseFunc)
 }
+
+// A CloseFunc closes a stream. If a CloseFunc is called more than once it does nothing
+type CloseFunc func()
 
 type stream struct {
 	values chan context.Context
 	errors chan error
+	done   chan struct{}
+	closed bool
 }
 
-func New() Stream {
-	return &stream{
+// New creates an initialized Stream
+func New() (Stream, CloseFunc) {
+	s := &stream{
 		values: make(chan context.Context),
 		errors: make(chan error),
+		done:   make(chan struct{}),
 	}
+	return s, closeStream(s)
 }
 
-func WithValues(values chan context.Context) Stream {
-	return &stream{
+// WithValues creates an initialized Stream from an existing value channel
+func WithValues(values chan context.Context) (Stream, CloseFunc) {
+	s := &stream{
 		values: values,
 		errors: make(chan error),
+		done:   make(chan struct{}),
 	}
+	return s, closeStream(s)
 }
 
 func (s *stream) Values() <-chan context.Context {
@@ -62,15 +79,17 @@ func (s *stream) Error(err error) {
 	s.errors <- err
 }
 
-func (s *stream) Close() {
-	close(s.errors)
-	close(s.values)
+func (s *stream) Done() <-chan struct{} {
+	return s.done
 }
 
-func (s *stream) WithValues(values chan context.Context) Stream {
+// WithValues creates a new Stream from an existing value channel. Errors from
+// Stream s will be forwarded to the new stream
+func (s *stream) WithValues(values chan context.Context) (Stream, CloseFunc) {
 	newStream := &stream{
 		values: values,
 		errors: make(chan error),
+		done:   make(chan struct{}),
 	}
 
 	go func() {
@@ -79,5 +98,20 @@ func (s *stream) WithValues(values chan context.Context) Stream {
 		}
 	}()
 
-	return newStream
+	return newStream, closeStream(newStream)
+}
+
+func closeStream(s *stream) CloseFunc {
+	return func() {
+		if !s.closed {
+			go func() {
+				<-s.done
+				close(s.errors)
+				close(s.values)
+			}()
+
+			close(s.done)
+			s.closed = true
+		}
+	}
 }

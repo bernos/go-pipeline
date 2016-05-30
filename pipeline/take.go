@@ -3,7 +3,6 @@ package pipeline
 import (
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
-	"log"
 )
 
 // Take creates a pipeline that returns at most n items from the input stream,
@@ -11,18 +10,21 @@ import (
 func Take(n int) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			out = in.WithValues(make(chan context.Context))
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		go func() {
-			defer out.Close()
+			defer cls()
+
 			count := 0
 
 			for value := range in.Values() {
 				if count < n {
 					out.Value(value)
+					count++
+				} else {
+					return
 				}
-				count++
 			}
 		}()
 
@@ -36,20 +38,17 @@ func Take(n int) Pipeline {
 func TakeUntil(predicate Predicate) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			out = in.WithValues(make(chan context.Context))
-			ok  = true
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		go func() {
-			defer out.Close()
+			defer cls()
 
 			for value := range in.Values() {
-				if ok {
-					if predicate(value) {
-						ok = false
-					} else {
-						out.Value(value)
-					}
+				if predicate(value) {
+					return
+				} else {
+					out.Value(value)
 				}
 			}
 		}()
@@ -63,20 +62,17 @@ func TakeUntil(predicate Predicate) Pipeline {
 func TakeWhile(predicate Predicate) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			out = in.WithValues(make(chan context.Context))
-			ok  = true
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		go func() {
-			defer out.Close()
+			defer cls()
 
 			for value := range in.Values() {
-				if ok {
-					if predicate(value) {
-						out.Value(value)
-					} else {
-						ok = false
-					}
+				if predicate(value) {
+					out.Value(value)
+				} else {
+					return
 				}
 			}
 		}()

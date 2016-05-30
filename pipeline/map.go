@@ -32,29 +32,29 @@ func Map(m Mapper) Pipeline {
 func PMap(m Mapper, n int) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			wg  sync.WaitGroup
-			out = in.WithValues(make(chan context.Context))
+			wg       sync.WaitGroup
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		wg.Add(n)
 
 		for i := 0; i < n; i++ {
 			go func() {
+				defer wg.Done()
+
 				for ctx := range in.Values() {
 					value, err := m.Map(ctx)
-
 					if err == nil {
 						out.Value(value)
 					} else {
 						out.Error(err)
 					}
 				}
-				wg.Done()
 			}()
 		}
 
 		go func() {
-			defer out.Close()
+			defer cls()
 			wg.Wait()
 		}()
 

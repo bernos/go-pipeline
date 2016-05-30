@@ -11,8 +11,8 @@ import (
 func Parallel(pipeline Pipeline, n int) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			wg  sync.WaitGroup
-			out = in.WithValues(make(chan context.Context))
+			wg       sync.WaitGroup
+			out, cls = in.WithValues(make(chan context.Context))
 		)
 
 		for i := 0; i < n; i++ {
@@ -21,10 +21,10 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 			go func() {
 				defer wg.Done()
 
-				pipelineIn := stream.New()
+				pipelineIn, closePipeline := stream.New()
 				pipeOut := pipeline(pipelineIn)
 
-				defer pipelineIn.Close()
+				defer closePipeline()
 
 				wg.Add(1)
 				go func() {
@@ -49,7 +49,7 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 		}
 
 		go func() {
-			defer out.Close()
+			defer cls()
 			wg.Wait()
 		}()
 

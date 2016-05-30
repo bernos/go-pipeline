@@ -13,16 +13,18 @@ import (
 func Tee(pipeline Pipeline) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
-			wg         sync.WaitGroup
-			out        = stream.New()
-			pipelineIn = in.WithValues(make(chan context.Context))
+			wg                          sync.WaitGroup
+			out, closeOut               = stream.New()
+			pipelineIn, closePipelineIn = in.WithValues(make(chan context.Context))
 		)
 
 		go func() {
 			pipeline(pipelineIn)
 
-			defer pipelineIn.Close()
-			defer out.Close()
+			defer func() {
+				closePipelineIn()
+				closeOut()
+			}()
 
 			for ctx := range in.Values() {
 				wg.Add(1)

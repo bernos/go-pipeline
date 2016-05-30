@@ -12,10 +12,10 @@ type Predicate func(context.Context) bool
 // on the output channel
 func Filter(p Predicate) Pipeline {
 	return func(in stream.Stream) stream.Stream {
-		out := in.WithValues(make(chan context.Context))
+		out, cls := in.WithValues(make(chan context.Context))
 
 		go func() {
-			defer out.Close()
+			defer cls()
 
 			for ctx := range in.Values() {
 				if p(ctx) {
