@@ -3,8 +3,9 @@ package pipeline
 import (
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
-	// "time"
 	"sync"
+	// "testing"
+	// "time"
 )
 
 type contextkey int
