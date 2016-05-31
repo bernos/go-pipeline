@@ -8,7 +8,7 @@ import (
 
 // Parallel runs n instances of a Pipeline in parallel, collecting all output and errors
 // onto the output channels
-func Parallel(pipeline Pipeline, n int) Pipeline {
+func Parallel(pl Pipeline, n int) Pipeline {
 	return func(in stream.Stream) stream.Stream {
 		var (
 			wg       sync.WaitGroup
@@ -22,7 +22,7 @@ func Parallel(pipeline Pipeline, n int) Pipeline {
 				defer wg.Done()
 
 				pipelineIn, closePipeline := stream.New()
-				pipeOut := pipeline(pipelineIn)
+				pipeOut := pl(pipelineIn)
 
 				defer closePipeline()
 

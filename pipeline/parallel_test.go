@@ -1,42 +1,44 @@
 package pipeline
 
-// import (
-// 	"github.com/bernos/go-pipeline/pipeline/stream"
-// 	"golang.org/x/net/context"
-// 	"testing"
-// 	"time"
-// )
+import (
+	"github.com/bernos/go-pipeline/pipeline/stream"
+	"golang.org/x/net/context"
+	"testing"
+	"time"
+)
 
-// func TestParallel(t *testing.T) {
-// 	n := 50
+func TestParallel(t *testing.T) {
+	concurrency := 5
+	delay := time.Millisecond * 500
+	expect := time.Millisecond * time.Duration(500*concurrency)
 
-// 	stage := HandlerFunc(func(ctx context.Context, out stream.Stream) {
-// 		time.Sleep(time.Second)
-// 		out.Value(NewContext(context.Background(), FromContext(ctx)+1))
-// 	})
+	inner := Map(MapperFunc(func(ctx context.Context) (context.Context, error) {
+		time.Sleep(delay)
+		x := FromContext(ctx)
+		return NewContext(ctx, x+1), nil
+	}))
 
-// 	values := make([]context.Context, n)
+	pl := Parallel(inner, concurrency)
+	in, cls := stream.New()
+	out := pl(in)
 
-// 	for i := 0; i < n; i++ {
-// 		values[i] = NewContext(context.Background(), i)
-// 	}
+	go func() {
+		defer cls()
 
-// 	pl := Parallel(Pipe(stage), n)
-// 	start := time.Now().UTC()
+		for i := 0; i < concurrency; i++ {
+			in.Value(NewContext(context.Background(), i))
+		}
+	}()
 
-// 	xs, errors := runPipeline(pl, values)
+	start := time.Now()
 
-// 	duration := time.Since(start)
+	for ctx := range out.Values() {
+		_ = FromContext(ctx)
+	}
 
-// 	if len(xs) != n {
-// 		t.Errorf("Expected %d values, got %d", n, len(xs))
-// 	}
+	d := time.Since(start)
 
-// 	if len(errors) != 0 {
-// 		t.Errorf("Expected %d errors, got %d", 0, len(errors))
-// 	}
-
-// 	if duration >= time.Second*20 {
-// 		t.Errorf("Want %d, got %d", time.Second, duration)
-// 	}
-// }
+	if !(d < expect) {
+		t.Errorf("Expected pipeline to finish within %d, but took %d", expect, d)
+	}
+}
