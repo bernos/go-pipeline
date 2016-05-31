@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
 	"testing"
@@ -40,5 +41,34 @@ func TestParallel(t *testing.T) {
 
 	if !(d < expect) {
 		t.Errorf("Expected pipeline to finish within %d, but took %d", expect, d)
+	}
+}
+
+func TestParallelError(t *testing.T) {
+	concurrency := 5
+	errcount := 0
+
+	inner := Map(MapperFunc(func(ctx context.Context) (context.Context, error) {
+		return nil, fmt.Errorf("Example error")
+	}))
+
+	pl := Parallel(inner, concurrency)
+	in, cls := stream.New()
+	out := pl(in)
+
+	go func() {
+		defer cls()
+
+		for i := 0; i < concurrency; i++ {
+			in.Value(NewContext(context.Background(), i))
+		}
+	}()
+
+	for _ = range out.Errors() {
+		errcount++
+	}
+
+	if errcount != concurrency {
+		t.Errorf("Expected %d errors, got %d", concurrency, errcount)
 	}
 }
