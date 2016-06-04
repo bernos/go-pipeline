@@ -1,9 +1,10 @@
 package pipeline
 
 import (
+	"sync"
+
 	"github.com/bernos/go-pipeline/pipeline/stream"
 	"golang.org/x/net/context"
-	"sync"
 )
 
 // Pipeline consumes values from an input stream, processes them, and then sends
@@ -106,6 +107,14 @@ func (p Pipeline) PFlatMap(m FlatMapper, n int) Pipeline {
 
 func (p Pipeline) Filter(predicate Predicate) Pipeline {
 	return Compose(Filter(predicate), p)
+}
+
+func (p Pipeline) ReduceLeft(r Reducer) Pipeline {
+	return Compose(ReduceLeft(r), p)
+}
+
+func (p Pipeline) ReduceRight(r Reducer) Pipeline {
+	return Compose(ReduceRight(r), p)
 }
 
 func (p Pipeline) Take(n int) Pipeline {
