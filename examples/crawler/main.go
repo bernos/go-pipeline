@@ -3,13 +3,15 @@ package main
 import (
 	"github.com/bernos/go-pipeline/examples/crawler/job"
 	"github.com/bernos/go-pipeline/pipeline"
+	"github.com/bernos/go-pipeline/pipeline/stream"
 	// "github.com/bernos/go-pipeline/pipeline/stream"
-	"golang.org/x/net/context"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 var (
@@ -21,17 +23,18 @@ func main() {
 	// A webcrawler pipeline that will recursively crawl a website, downloading content
 	// in parallel, and removing duplicate urls
 	crawler := pipeline.
-		PMap(fetchURL(&http.Client{}), 20).
+		PMap(fetchURL(&http.Client{}), 10).
 		Map(saveFile()).
 		FlatMap(findURLS()).
-		Filter(dedupe())
+		Filter(dedupe()).
+		Loop()
 
 	// Point the crawler at wikipedia, and configure a timeout using the context
 	ctx, cancel := context.WithTimeout(job.NewContext(context.Background(), job.Job{URL: "http://www.wikipedia.com"}), time.Second*15)
 
-	// Run the crawler pipeline in Loop mode, feeding its output stream back to
-	// its input stream
-	out := crawler.Loop(ctx)
+	in, cls := stream.New()
+	out := crawler(in)
+	in.Value(ctx)
 
 	// Start a go routine to monitor for errors on the pipeline error channel.
 	// For now we will just stop the pipeline, using the cancel func for our
@@ -43,10 +46,16 @@ func main() {
 		}
 	}()
 
+	// Close the input stream when the context times out
+	go func() {
+		<-ctx.Done()
+		cls()
+	}()
+
 	// Print out the pipeline output
 	for ctx := range out.Values() {
 		j, _ := job.FromContext(ctx)
-		log.Printf("Finished one - %s\n", j.URL)
+		log.Printf("Found a link to %s\n", j.URL)
 	}
 
 	log.Println("Done!")
